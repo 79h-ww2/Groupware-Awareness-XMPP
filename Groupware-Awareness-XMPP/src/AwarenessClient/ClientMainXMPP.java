@@ -35,6 +35,7 @@ public class ClientMainXMPP extends ClientFenster{
 	private Presence status;
 	private Roster kontaktliste;
 	private Vector<AwarenessListZeile> kontaktliste_fenster_vector = new Vector<AwarenessListZeile>();
+	private String serverAdresse;
 		
 	/**
 	 * Konstruktor des Clients
@@ -57,11 +58,11 @@ public class ClientMainXMPP extends ClientFenster{
 		
 		//Verbindung zu OpenFire wird aufgebaut
 		try {
-			String adresse = JOptionPane.showInputDialog(this, "Bitte geben Sie IP-Adresse des Servers an.");
+			String serverAdresse = JOptionPane.showInputDialog(this, "Bitte geben Sie IP-Adresse des Servers an.");
 			
-			if ( adresse != null){
+			if ( serverAdresse != null){
 				//Verbindung zum Openfire-Server aufbauen
-				connection = new XMPPConnection(adresse);
+				connection = new XMPPConnection(serverAdresse);
 				connection.connect();
 				connection.addPacketListener(new KontaktanfragenListener(), new PacketFilter() {
 					public boolean accept(Packet arg0) {
@@ -124,6 +125,7 @@ public class ClientMainXMPP extends ClientFenster{
 					
 					//Kontaktliste laden
 					kontaktliste = connection.getRoster();
+					kontaktliste.setSubscriptionMode(Roster.SubscriptionMode.manual);
 					kontaktliste.addRosterListener(new KontaktlistenListener());
 					kontaktlisteAnzeigen();
 					
@@ -132,7 +134,6 @@ public class ClientMainXMPP extends ClientFenster{
 					
 				} catch (Exception e1) {
 					JOptionPane.showMessageDialog(null, e1.getMessage());
-					System.exit(0);
 				}
 			}
 			/*
@@ -157,6 +158,7 @@ public class ClientMainXMPP extends ClientFenster{
 					
 					//Kontaktliste laden
 					kontaktliste = connection.getRoster();
+					kontaktliste.setSubscriptionMode(Roster.SubscriptionMode.manual);
 					kontaktliste.addRosterListener(new KontaktlistenListener());
 					kontaktlisteAnzeigen();
 					
@@ -184,6 +186,11 @@ public class ClientMainXMPP extends ClientFenster{
 		try {
 			if ( kontakt == null) throw new Exception("Bitte geben Sie einen Kontaktnamen an.");
 			kontaktliste.createEntry(kontakt, kontakt, null);
+			
+			Presence neuerBenutzerPaket = new Presence(Presence.Type.subscribe);
+			neuerBenutzerPaket.setTo(kontakt);
+			connection.sendPacket(neuerBenutzerPaket);
+			
 		} catch (Exception e) {
 			JOptionPane.showMessageDialog(null, e.getMessage());
 		}
@@ -292,12 +299,21 @@ public class ClientMainXMPP extends ClientFenster{
 		public void processPacket(Packet arg0) {
 			
 			kontaktliste.setSubscriptionMode(Roster.SubscriptionMode.manual);
+			Presence p1 = (Presence) arg0;
 			
-			Presence p = (Presence)arg0;
-			Presence antwort = new Presence(Presence.Type.subscribe);
-			antwort.setTo(p.getFrom());
-			connection.sendPacket(antwort);
-			System.out.println(p.getFrom());
+			//bestätigt das erhaltene Paket
+			Presence bestaetigung = new Presence(Presence.Type.subscribed);
+			bestaetigung.setTo(p1.getFrom());
+			connection.sendPacket(bestaetigung);
+			System.out.println("bestaetigung");
+			
+			if (p1.getType() ==Presence.Type.subscribe){				
+				//sendet eine Gegenanfrage
+				Presence gegenanfrage = new Presence(Presence.Type.subscribe);
+				gegenanfrage.setTo(p1.getFrom());
+				connection.sendPacket(gegenanfrage);
+				System.out.println("anfrage2");
+			}
 		}
 		
 	}
