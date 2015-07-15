@@ -35,8 +35,6 @@ public class ClientMainXMPP extends ClientFenster{
 	private Presence status;
 	private Roster kontaktliste;
 	private Vector<AwarenessListZeile> kontaktliste_fenster_vector = new Vector<AwarenessListZeile>();
-	private boolean neuerBenutzer = false;
-	private String serverAdresse;
 		
 	/**
 	 * Konstruktor des Clients
@@ -59,11 +57,11 @@ public class ClientMainXMPP extends ClientFenster{
 		
 		//Verbindung zu OpenFire wird aufgebaut
 		try {
-			serverAdresse = JOptionPane.showInputDialog(this, "Bitte geben Sie IP-Adresse des Servers an.");
+			String adresse = JOptionPane.showInputDialog(this, "Bitte geben Sie IP-Adresse des Servers an.");
 			
-			if ( serverAdresse != null){
+			if ( adresse != null){
 				//Verbindung zum Openfire-Server aufbauen
-				connection = new XMPPConnection(serverAdresse);
+				connection = new XMPPConnection(adresse);
 				connection.connect();
 				connection.addPacketListener(new KontaktanfragenListener(), new PacketFilter() {
 					public boolean accept(Packet arg0) {
@@ -150,24 +148,19 @@ public class ClientMainXMPP extends ClientFenster{
 					login.dispose(); //Schließt das Anmeldedialog
 					setVisible(true); //zeigt das Awareness-Dialog an
 					
-					connection.login(login.getBenutzername(), String.valueOf(login.getPasswort()));
-					
 					//neue Presence-Instanze anlegen
 					status = new Presence(Presence.Type.available);
 					connection.sendPacket(status);
-									
 					
 					//Kontaktliste laden
-					neuerBenutzer = true;
 					kontaktliste = connection.getRoster();
 					kontaktliste.addRosterListener(new KontaktlistenListener());
 					kontaktlisteAnzeigen();
 					
 					
 				} catch (Exception e1) {
-					//String meldung = e1.getMessage().equals("conflict(409)") ? "Der Benutzername exisiert schon." : e1.getMessage();
-					JOptionPane.showMessageDialog(null, e1.getMessage());
-					e1.printStackTrace();
+					String meldung = e1.getMessage().equals("conflict(409)") ? "Der Benutzername exisiert schon." : e1.getMessage();
+					JOptionPane.showMessageDialog(null, meldung);
 				}
 			}
 			/*
@@ -185,26 +178,9 @@ public class ClientMainXMPP extends ClientFenster{
 	public void kontaktZurKontaktlisteHinzufuegen(){
 		String kontakt = JOptionPane.showInputDialog(this, "Bitte geben Sie den Kontaktnamen ein, der zur Kontaktliste hinzugefügt werden soll.");
 		
-		kontaktliste.setSubscriptionMode(Roster.SubscriptionMode.manual);
-		
 		try {
 			if ( kontakt == null) throw new Exception("Bitte geben Sie einen Kontaktnamen an.");
 			kontaktliste.createEntry(kontakt, kontakt, null);
-			
-			Presence neuerBenutzerPaket = new Presence(Presence.Type.subscribe);
-			neuerBenutzerPaket.setTo(kontakt);
-			connection.sendPacket(neuerBenutzerPaket);
-
-			Presence neuerBenutzerPaket2 = new Presence(Presence.Type.subscribed);
-			neuerBenutzerPaket2.setTo(login.getBenutzername() + "@" + serverAdresse);
-			neuerBenutzerPaket2.setFrom(kontakt);
-			connection.sendPacket(neuerBenutzerPaket2);
-
-			
-			
-			
-			
-			//neuerBenutzerPaket.setFrom(status.);
 		} catch (Exception e) {
 			JOptionPane.showMessageDialog(null, e.getMessage());
 		}
@@ -258,55 +234,51 @@ public class ClientMainXMPP extends ClientFenster{
 	 * Kontaktliste anzeigen
 	 */
 	public void kontaktlisteAnzeigen(){
-		if (!neuerBenutzer){
-			
-			HashMap<org.jivesoftware.smack.packet.Presence.Mode, String> icons = new HashMap<>();
-			icons.put(Presence.Mode.chat, "online.png");
-			icons.put(Presence.Mode.available, "online.png");
-			icons.put(Presence.Mode.away, "abwsend.png");
-			icons.put(Presence.Mode.xa, "laenger_abwesend.png");
-			icons.put(Presence.Mode.dnd, "beschaeftigt.png");
-			//icons.put("off", "offline.png");
-			String pfadZumIcon = System.getProperty("user.dir") + "/bilder/";
-			
+				
 		
-					
-			Collection<RosterEntry> kontakte = kontaktliste.getEntries();
-			boolean farbwechsel = false;
-			kontaktliste_fenster_vector.clear();
-			
-			for (RosterEntry kontakt : kontakte){
-				String bildPfad = "";
-				if ( kontakt.getType().equals(Presence.Type.unavailable)){
-					bildPfad = pfadZumIcon + "offline.png";
-				}else if (kontaktliste.getPresence(kontakt.getUser()).getMode().equals(Presence.Mode.chat) ||
-						kontaktliste.getPresence(kontakt.getUser()).getMode().equals(Presence.Mode.away) ||
-						kontaktliste.getPresence(kontakt.getUser()).getMode().equals(Presence.Mode.dnd) ||
-						kontaktliste.getPresence(kontakt.getUser()).getMode().equals(Presence.Mode.xa)
-						) {
-					bildPfad = pfadZumIcon + icons.get(kontaktliste.getPresence(kontakt.getUser()).getMode());
-					
-					//System.out.println( kontaktliste.getPresence(kontakt.getUser()).getMode().toString());
-				}
-				else{
-					bildPfad = pfadZumIcon + "offline.png";
-				}
-				String name = kontakt.getUser() == null ? "" : kontakt.getUser();
-				String status_ = kontaktliste.getPresence(kontakt.getUser()).getStatus();
+		HashMap<org.jivesoftware.smack.packet.Presence.Mode, String> icons = new HashMap<>();
+		icons.put(Presence.Mode.chat, "online.png");
+		icons.put(Presence.Mode.available, "online.png");
+		icons.put(Presence.Mode.away, "abwsend.png");
+		icons.put(Presence.Mode.xa, "laenger_abwesend.png");
+		icons.put(Presence.Mode.dnd, "beschaeftigt.png");
+		//icons.put("off", "offline.png");
+		String pfadZumIcon = System.getProperty("user.dir") + "/bilder/";
+		
+		System.out.println(kontaktliste.getEntryCount());
+		
+		Collection<RosterEntry> kontakte = kontaktliste.getEntries();
+		boolean farbwechsel = false;
+		kontaktliste_fenster_vector.clear();
+		System.out.println("Beginnschleife");
+		for (RosterEntry kontakt : kontakte){
+			String bildPfad = "";
+			if ( kontakt.getType().equals(Presence.Type.unavailable)){
+				bildPfad = pfadZumIcon + "offline.png";
+			}else /*if (kontakt.getType().equals(Presence.Type.available))*/ {
+				bildPfad = pfadZumIcon + icons.get(kontaktliste.getPresence(kontakt.getUser()).getMode());
 				
-				AwarenessListZeile zeile = new AwarenessListZeile(name, status_, new ImageIcon(bildPfad), farbwechsel);
-				
-				farbwechsel = !farbwechsel;
-				kontaktliste_fenster_vector.add(zeile);
+				//System.out.println( kontaktliste.getPresence(kontakt.getUser()).getMode().toString());
 			}
+			/*else{
+				bildPfad = pfadZumIcon + "offline.png";
+			}*/
+			String name = kontakt.getUser() == null ? "" : kontakt.getUser();
+			String status_ = kontaktliste.getPresence(kontakt.getUser()).getStatus();
 			
+			AwarenessListZeile zeile = new AwarenessListZeile(name, status_, new ImageIcon(bildPfad), farbwechsel);
 			
-			//Die neue Liste im Fenster anzeigen
-			awarenessListe.setListData(kontaktliste_fenster_vector);
-			awarenessListe.validate();
-			awarenessListe.repaint();
+			farbwechsel = !farbwechsel;
+			kontaktliste_fenster_vector.add(zeile);
 		}
-		neuerBenutzer = false;
+		for (AwarenessListZeile z : kontaktliste_fenster_vector){
+			System.out.println(z.getBenutzername());
+		}
+		
+		//Die neue Liste im Fenster anzeigen
+		awarenessListe.setListData(kontaktliste_fenster_vector);
+		awarenessListe.validate();
+		awarenessListe.repaint();
 	}
 	
 	/**
@@ -316,11 +288,9 @@ public class ClientMainXMPP extends ClientFenster{
 	 */
 	private class KontaktanfragenListener implements PacketListener{
 		public void processPacket(Packet arg0) {
-			kontaktliste.setSubscriptionMode(Roster.SubscriptionMode.manual);
 			Presence p = (Presence)arg0;
 			Presence antwort = new Presence(Presence.Type.subscribed);
 			antwort.setTo(p.getFrom());
-			System.out.println(p.getFrom());
 			connection.sendPacket(antwort);
 		}
 		
