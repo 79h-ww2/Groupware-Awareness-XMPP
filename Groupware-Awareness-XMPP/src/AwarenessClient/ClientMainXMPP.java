@@ -2,18 +2,26 @@ package AwarenessClient;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Vector;
 
 import javax.swing.ImageIcon;
+import javax.swing.JCheckBox;
+import javax.swing.JLabel;
 import javax.swing.JOptionPane;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 
+import org.jivesoftware.smack.PacketListener;
 import org.jivesoftware.smack.Roster;
 import org.jivesoftware.smack.RosterEntry;
 import org.jivesoftware.smack.RosterListener;
 import org.jivesoftware.smack.XMPPConnection;
-import org.jivesoftware.smack.XMPPException;
+import org.jivesoftware.smack.filter.PacketFilter;
+import org.jivesoftware.smack.packet.Packet;
 import org.jivesoftware.smack.packet.Presence;
 
 import AwarenessListFenster.AwarenessListZeile;
@@ -26,6 +34,7 @@ public class ClientMainXMPP extends ClientFenster{
 	private XMPPConnection connection;
 	private Presence status;
 	private Roster kontaktliste;
+	private Vector<AwarenessListZeile> kontaktliste_fenster_vector = new Vector<AwarenessListZeile>();
 		
 	/**
 	 * Konstruktor des Clients
@@ -38,15 +47,35 @@ public class ClientMainXMPP extends ClientFenster{
 		
 		//Listener, der darauf lauscht, ob beim Menü ausgewählt wurde, dass eine neuer Kontakt zur Kontaktliste hinzugefügt werden soll
 		kontaktHinzufuegen.addActionListener(new buttonKlickListener());
+		
+		//Listener, der auf eine Änderung im Statustextfeld lauscht
+		txtStatusnachricht.getDocument().addDocumentListener(new StatusTextAenderungListener());
+		
+		//Listener zur Combo-Box hinzufügen, der reagiert, wenn eine anderer Status ausgewählt wurde
+		comStatusSymbol.addItemListener(new statusSymbolListener());
 
 		
 		//Verbindung zu OpenFire wird aufgebaut
 		try {
 			String adresse = JOptionPane.showInputDialog(this, "Bitte geben Sie IP-Adresse des Servers an.");
 			
-			//Verbindung zum Openfire-Server aufbauen
-			connection = new XMPPConnection(adresse);
-			connection.connect();			
+			if ( adresse != null){
+				//Verbindung zum Openfire-Server aufbauen
+				connection = new XMPPConnection(adresse);
+				connection.connect();
+				connection.addPacketListener(new KontaktanfragenListener(), new PacketFilter() {
+					public boolean accept(Packet arg0) {
+						boolean result = false;
+						if (arg0 instanceof Presence){
+							Presence p = (Presence)arg0;
+							result = p.getType().equals(Presence.Type.subscribe);
+						}
+						return result;
+					}
+				});
+			}else{
+				System.exit(0);
+			}
 						
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -78,7 +107,7 @@ public class ClientMainXMPP extends ClientFenster{
 			if (e.getActionCommand().equals("Login")){
 				
 				try {
-					if (login.getBenutzername().equals("") || login.getPasswort().length == 0 ) 
+					if (login.getBenutzername()== null || login.getPasswort().length == 0 ) 
 						throw new Exception("Bitte geben Sie einen Benutzername und ein Passwort ein.");
 					
 					connection.login(login.getBenutzername(), String.valueOf(login.getPasswort()));
@@ -97,6 +126,9 @@ public class ClientMainXMPP extends ClientFenster{
 					kontaktliste.addRosterListener(new KontaktlistenListener());
 					kontaktlisteAnzeigen();
 					
+					//Status laden
+					txtStatusnachricht.setText(status.getStatus());
+					
 				} catch (Exception e1) {
 					JOptionPane.showMessageDialog(null, e1.getMessage());
 				}
@@ -106,7 +138,7 @@ public class ClientMainXMPP extends ClientFenster{
 			 */
 			else if(e.getActionCommand().equals("Registrieren")){
 				try {
-					if (login.getBenutzername().equals("") || login.getPasswort().length == 0 ) 
+					if (login.getBenutzername() == null || login.getPasswort().length == 0 ) 
 						throw new Exception("Bitte geben Sie einen Benutzername und ein Passwort ein.");
 					
 					connection.getAccountManager().createAccount(login.getBenutzername(), String.valueOf(login.getPasswort()));
@@ -124,6 +156,7 @@ public class ClientMainXMPP extends ClientFenster{
 					kontaktliste = connection.getRoster();
 					kontaktliste.addRosterListener(new KontaktlistenListener());
 					kontaktlisteAnzeigen();
+					
 					
 				} catch (Exception e1) {
 					String meldung = e1.getMessage().equals("conflict(409)") ? "Der Benutzername exisiert schon." : e1.getMessage();
@@ -146,7 +179,7 @@ public class ClientMainXMPP extends ClientFenster{
 		String kontakt = JOptionPane.showInputDialog(this, "Bitte geben Sie den Kontaktnamen ein, der zur Kontaktliste hinzugefügt werden soll.");
 		
 		try {
-			if ( kontakt.equals("")) throw new Exception("Bitte geben Sie einen Kontaktnamen an.");
+			if ( kontakt == null) throw new Exception("Bitte geben Sie einen Kontaktnamen an.");
 			kontaktliste.createEntry(kontakt, kontakt, null);
 		} catch (Exception e) {
 			JOptionPane.showMessageDialog(null, e.getMessage());
@@ -201,11 +234,10 @@ public class ClientMainXMPP extends ClientFenster{
 	 * Kontaktliste anzeigen
 	 */
 	public void kontaktlisteAnzeigen(){
-		
-		//Der als Input für auf Kontaktliste im Fenster gilt
-		Vector<AwarenessListZeile> kontaktliste_fenster_vector = new Vector<AwarenessListZeile>();
+				
 		
 		HashMap<org.jivesoftware.smack.packet.Presence.Mode, String> icons = new HashMap<>();
+		icons.put(Presence.Mode.chat, "online.png");
 		icons.put(Presence.Mode.available, "online.png");
 		icons.put(Presence.Mode.away, "abwsend.png");
 		icons.put(Presence.Mode.xa, "laenger_abwesend.png");
@@ -217,24 +249,102 @@ public class ClientMainXMPP extends ClientFenster{
 		
 		Collection<RosterEntry> kontakte = kontaktliste.getEntries();
 		boolean farbwechsel = false;
+		kontaktliste_fenster_vector.clear();
+		System.out.println("Beginnschleife");
 		for (RosterEntry kontakt : kontakte){
-			
 			String bildPfad = "";
 			if ( kontakt.getType().equals(Presence.Type.unavailable)){
 				bildPfad = pfadZumIcon + "offline.png";
-			}else{
+			}else /*if (kontakt.getType().equals(Presence.Type.available))*/ {
 				bildPfad = pfadZumIcon + icons.get(kontaktliste.getPresence(kontakt.getUser()).getMode());
+				
+				//System.out.println( kontaktliste.getPresence(kontakt.getUser()).getMode().toString());
 			}
-			AwarenessListZeile zeile = new AwarenessListZeile(kontakt.getName(), kontakt.getStatus().toString(), new ImageIcon(bildPfad), farbwechsel);
+			/*else{
+				bildPfad = pfadZumIcon + "offline.png";
+			}*/
+			String name = kontakt.getUser() == null ? "" : kontakt.getUser();
+			String status_ = kontaktliste.getPresence(kontakt.getUser()).getStatus();
+			
+			AwarenessListZeile zeile = new AwarenessListZeile(name, status_, new ImageIcon(bildPfad), farbwechsel);
 			
 			farbwechsel = !farbwechsel;
 			kontaktliste_fenster_vector.add(zeile);
 		}
-		
+		for (AwarenessListZeile z : kontaktliste_fenster_vector){
+			System.out.println(z.getBenutzername());
+		}
 		
 		//Die neue Liste im Fenster anzeigen
 		awarenessListe.setListData(kontaktliste_fenster_vector);
+		awarenessListe.validate();
 		awarenessListe.repaint();
 	}
+	
+	/**
+	 * Listener, der darauf wartet, dass ein Kontaktb eine Freundschafsanfrage sendet
+	 * @author benedikt
+	 *
+	 */
+	private class KontaktanfragenListener implements PacketListener{
+		public void processPacket(Packet arg0) {
+			Presence p = (Presence)arg0;
+			Presence antwort = new Presence(Presence.Type.subscribed);
+			antwort.setTo(p.getFrom());
+			connection.sendPacket(antwort);
+		}
+		
+	}
+	
+	/**
+	 * Listener, der die Änderung der Statusnachricht an den Server überträgt
+	 * @author Benedikt Brüntrup
+	 *
+	 */
+	private class StatusTextAenderungListener implements DocumentListener{
+
+		public void insertUpdate(DocumentEvent e) {
+			textAenderung(e);;	
+		}
+
+		public void removeUpdate(DocumentEvent e) {
+			textAenderung(e);
+		}
+
+		public void changedUpdate(DocumentEvent e) {
+			textAenderung(e);	
+		}
+		
+		public void textAenderung(DocumentEvent e){
+			status.setStatus(txtStatusnachricht.getText());
+			connection.sendPacket(status);
+
+		}
+		
+	}
+	
+	/**
+	 * Dieser Listener warte, bis eine anderen Statussymbol ausgewählt wird
+	 * @author Benedikt Brüntrup
+	 */
+	private class statusSymbolListener implements ItemListener{
+
+		/**
+		 * Sendet zum Server das neue Statussymbol
+		 */
+		public void itemStateChanged(ItemEvent e) {
+			
+			HashMap<String, Presence.Mode> statusliste = new HashMap<>();
+			statusliste.put("Online", Presence.Mode.chat);
+			statusliste.put("Abwesend", Presence.Mode.away);
+			statusliste.put("Laenger Abwesend", Presence.Mode.xa);
+			statusliste.put("Beschaeftigt", Presence.Mode.dnd);
+			JLabel auswahl = (JLabel)e.getItem();
+			
+			status.setMode(statusliste.get(auswahl.getText()));
+			connection.sendPacket(status);
+		}
+	}
+	
 	
 }
