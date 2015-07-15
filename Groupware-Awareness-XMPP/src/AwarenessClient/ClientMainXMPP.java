@@ -119,6 +119,7 @@ public class ClientMainXMPP extends ClientFenster{
 					
 					//neue Presence-Instanze anlegen
 					status = new Presence(Presence.Type.available);
+					status.setMode(Presence.Mode.chat);
 					connection.sendPacket(status);
 					
 					//Kontaktliste laden
@@ -131,6 +132,7 @@ public class ClientMainXMPP extends ClientFenster{
 					
 				} catch (Exception e1) {
 					JOptionPane.showMessageDialog(null, e1.getMessage());
+					System.exit(0);
 				}
 			}
 			/*
@@ -142,6 +144,7 @@ public class ClientMainXMPP extends ClientFenster{
 						throw new Exception("Bitte geben Sie einen Benutzername und ein Passwort ein.");
 					
 					connection.getAccountManager().createAccount(login.getBenutzername(), String.valueOf(login.getPasswort()));
+					connection.login(login.getBenutzername(), String.valueOf(login.getPasswort()));
 					
 					//Kennzeichnet, dass das Login-Dialog mit einen Button geschlossen wurde
 					login.setGeschlossendurchButton(true);
@@ -245,24 +248,26 @@ public class ClientMainXMPP extends ClientFenster{
 		//icons.put("off", "offline.png");
 		String pfadZumIcon = System.getProperty("user.dir") + "/bilder/";
 		
-		System.out.println(kontaktliste.getEntryCount());
+		
 		
 		Collection<RosterEntry> kontakte = kontaktliste.getEntries();
 		boolean farbwechsel = false;
 		kontaktliste_fenster_vector.clear();
-		System.out.println("Beginnschleife");
+
 		for (RosterEntry kontakt : kontakte){
 			String bildPfad = "";
 			if ( kontakt.getType().equals(Presence.Type.unavailable)){
 				bildPfad = pfadZumIcon + "offline.png";
-			}else /*if (kontakt.getType().equals(Presence.Type.available))*/ {
-				bildPfad = pfadZumIcon + icons.get(kontaktliste.getPresence(kontakt.getUser()).getMode());
-				
-				//System.out.println( kontaktliste.getPresence(kontakt.getUser()).getMode().toString());
+			}else if (kontaktliste.getPresence(kontakt.getUser()).getMode() == Presence.Mode.chat ||
+					kontaktliste.getPresence(kontakt.getUser()).getMode() == Presence.Mode.away ||
+					kontaktliste.getPresence(kontakt.getUser()).getMode() == Presence.Mode.dnd ||
+					kontaktliste.getPresence(kontakt.getUser()).getMode() == Presence.Mode.xa
+					) {
+				bildPfad = pfadZumIcon + icons.get(kontaktliste.getPresence(kontakt.getUser()).getMode());		
 			}
-			/*else{
+			else{
 				bildPfad = pfadZumIcon + "offline.png";
-			}*/
+			}
 			String name = kontakt.getUser() == null ? "" : kontakt.getUser();
 			String status_ = kontaktliste.getPresence(kontakt.getUser()).getStatus();
 			
@@ -270,9 +275,6 @@ public class ClientMainXMPP extends ClientFenster{
 			
 			farbwechsel = !farbwechsel;
 			kontaktliste_fenster_vector.add(zeile);
-		}
-		for (AwarenessListZeile z : kontaktliste_fenster_vector){
-			System.out.println(z.getBenutzername());
 		}
 		
 		//Die neue Liste im Fenster anzeigen
@@ -288,10 +290,14 @@ public class ClientMainXMPP extends ClientFenster{
 	 */
 	private class KontaktanfragenListener implements PacketListener{
 		public void processPacket(Packet arg0) {
+			
+			kontaktliste.setSubscriptionMode(Roster.SubscriptionMode.manual);
+			
 			Presence p = (Presence)arg0;
-			Presence antwort = new Presence(Presence.Type.subscribed);
+			Presence antwort = new Presence(Presence.Type.subscribe);
 			antwort.setTo(p.getFrom());
 			connection.sendPacket(antwort);
+			System.out.println(p.getFrom());
 		}
 		
 	}
