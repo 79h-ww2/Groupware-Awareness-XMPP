@@ -34,7 +34,6 @@ public class ClientMainXMPP extends ClientFenster{
 	private XMPPConnection connection;
 	private Presence status;
 	private Roster kontaktliste;
-	private Vector<AwarenessListZeile> kontaktliste_fenster_vector = new Vector<AwarenessListZeile>();
 	private String serverAdresse;
 		
 	/**
@@ -186,10 +185,10 @@ public class ClientMainXMPP extends ClientFenster{
 	 * fügt einen Kontakt zur Kontaktliste hinzu
 	 */
 	public void kontaktZurKontaktlisteHinzufuegen(){
-		String kontakt = JOptionPane.showInputDialog(this, "Bitte geben Sie den Kontaktnamen ein, der zur Kontaktliste hinzugefügt werden soll.");
+		String kontakt = JOptionPane.showInputDialog(this, "Bitte geben Sie die Jabber-ID  des Benutzers ein, der zur Kontaktliste hinzugefügt werden soll.");
 		
 		try {
-			if ( kontakt == null) throw new Exception("Bitte geben Sie einen Kontaktnamen an.");
+			if ( kontakt == null) throw new Exception("Bitte geben Sie eine Jabber-ID an.");
 			kontaktliste.createEntry(kontakt, kontakt, null);
 			
 			Presence neuerBenutzerPaket = new Presence(Presence.Type.subscribe);
@@ -264,7 +263,7 @@ public class ClientMainXMPP extends ClientFenster{
 		
 		Collection<RosterEntry> kontakte = kontaktliste.getEntries();
 		boolean farbwechsel = false;
-		kontaktliste_fenster_vector.clear();
+		Vector<AwarenessListZeile> kontaktliste_fenster_vector = new Vector<AwarenessListZeile>();
 
 		for (RosterEntry kontakt : kontakte){
 			
